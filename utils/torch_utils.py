@@ -317,10 +317,10 @@ def copy_attr(a, b, include=(), exclude=()):
             setattr(a, k, v)
 
 
-def smart_optimizer(model, name='Adam', hyp = {"lr": 0.001, "momentum": 0.9, "decay":1e-5}):
-    lr = hyp["lr"]
+def smart_optimizer(model, name='Adam', hyp = {"lr0": 0.001, "momentum": 0.9, "weight_decay":1e-5}):
+    lr = hyp["lr0"]
     momentum = hyp["momentum"]
-    decay = hyp["decay"]
+    decay = hyp["weight_decay"]
 
     # YOLOv5 3-param group optimizer: 0) weights with decay, 1) weights no decay, 2) biases no decay
     # g = [], [], []  # optimizer parameter groups
@@ -392,11 +392,12 @@ def smart_optimizer(model, name='Adam', hyp = {"lr": 0.001, "momentum": 0.9, "de
     elif name == 'FishLeg':
         likelihood = FISH_LIKELIHOODS[hyp["likelihood"]](device=hyp["device"])
 
-        model = initialise_FishModel(model, module_names="__ALL__", fish_scale=hyp["scale_factor"] / hyp["damping"])
+        model = initialise_FishModel(model, module_names="__ALL__", fish_scale=(hyp["scale_factor"] / hyp["damping"]))
         optimizer = FishLeg(model,hyp["aux_loader"], likelihood, lr=lr, beta=hyp["beta"],weight_decay=hyp["weight_decay"],
                             aux_lr=hyp["aux_lr"],aux_betas=hyp["aux_betas"],aux_eps=hyp["aux_eps"],damping=hyp["damping"],
                             update_aux_every=hyp["update_aux_every"],writer=hyp["writer"],method=hyp["method"],
                             method_kwargs=hyp["method_kwargs"],precondition_aux=hyp["precondition_aux"],aux_log=hyp["aux_log"])
+        print(model)
     else:
         raise NotImplementedError(f'Optimizer {name} not implemented.')
 
