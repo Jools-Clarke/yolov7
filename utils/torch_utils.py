@@ -21,6 +21,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from utils.general import LOGGER, check_version, colorstr, file_date, git_describe
 
+from optim.FishLeg import FishLeg, FISH_LIKELIHOODS, initialise_FishModel
+
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
@@ -315,10 +317,10 @@ def copy_attr(a, b, include=(), exclude=()):
             setattr(a, k, v)
 
 
-def smart_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5):
+def smart_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5, scale_factor = 1, damping = 0.1):
     # YOLOv5 3-param group optimizer: 0) weights with decay, 1) weights no decay, 2) biases no decay
-    g = [], [], []  # optimizer parameter groups
-    bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
+    # g = [], [], []  # optimizer parameter groups
+    # bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
     #for v in model.modules():
     #    for p_name, p in v.named_parameters(recurse=0):
     #        if p_name == 'bias':  # bias (no decay)
@@ -328,68 +330,71 @@ def smart_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5):
     #        else:
     #            g[0].append(p)  # weight (with decay)
                 
-    for v in model.modules():
-        if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):  # bias (no decay)
-            g[2].append(v.bias)
-        if isinstance(v, bn):  # weight (no decay)
-            g[1].append(v.weight)
-        elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
-            g[0].append(v.weight)
+    # for v in model.modules():
+    #     if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):  # bias (no decay)
+    #         g[2].append(v.bias)
+    #     if isinstance(v, bn):  # weight (no decay)
+    #         g[1].append(v.weight)
+    #     elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
+    #         g[0].append(v.weight)
             
-        if hasattr(v, 'im'):
-            if hasattr(v.im, 'implicit'):           
-                g[1].append(v.im.implicit)
-            else:
-                for iv in v.im:
-                    g[1].append(iv.implicit)
-        if hasattr(v, 'ia'):
-            if hasattr(v.ia, 'implicit'):           
-                g[1].append(v.ia.implicit)
-            else:
-                for iv in v.ia:
-                    g[1].append(iv.implicit)
+    #     if hasattr(v, 'im'):
+    #         if hasattr(v.im, 'implicit'):           
+    #             g[1].append(v.im.implicit)
+    #         else:
+    #             for iv in v.im:
+    #                 g[1].append(iv.implicit)
+    #     if hasattr(v, 'ia'):
+    #         if hasattr(v.ia, 'implicit'):           
+    #             g[1].append(v.ia.implicit)
+    #         else:
+    #             for iv in v.ia:
+    #                 g[1].append(iv.implicit)
                     
-        if hasattr(v, 'im2'):
-            if hasattr(v.im2, 'implicit'):           
-                g[1].append(v.im2.implicit)
-            else:
-                for iv in v.im2:
-                    g[1].append(iv.implicit)
-        if hasattr(v, 'ia2'):
-            if hasattr(v.ia2, 'implicit'):           
-                g[1].append(v.ia2.implicit)
-            else:
-                for iv in v.ia2:
-                    g[1].append(iv.implicit)
+    #     if hasattr(v, 'im2'):
+    #         if hasattr(v.im2, 'implicit'):           
+    #             g[1].append(v.im2.implicit)
+    #         else:
+    #             for iv in v.im2:
+    #                 g[1].append(iv.implicit)
+    #     if hasattr(v, 'ia2'):
+    #         if hasattr(v.ia2, 'implicit'):           
+    #             g[1].append(v.ia2.implicit)
+    #         else:
+    #             for iv in v.ia2:
+    #                 g[1].append(iv.implicit)
                     
-        if hasattr(v, 'im3'):
-            if hasattr(v.im3, 'implicit'):           
-                g[1].append(v.im3.implicit)
-            else:
-                for iv in v.im3:
-                    g[1].append(iv.implicit)
-        if hasattr(v, 'ia3'):
-            if hasattr(v.ia3, 'implicit'):           
-                g[1].append(v.ia3.implicit)
-            else:
-                for iv in v.ia3:
-                    g[1].append(iv.implicit)
+    #     if hasattr(v, 'im3'):
+    #         if hasattr(v.im3, 'implicit'):           
+    #             g[1].append(v.im3.implicit)
+    #         else:
+    #             for iv in v.im3:
+    #                 g[1].append(iv.implicit)
+    #     if hasattr(v, 'ia3'):
+    #         if hasattr(v.ia3, 'implicit'):           
+    #             g[1].append(v.ia3.implicit)
+    #         else:
+    #             for iv in v.ia3:
+    #                 g[1].append(iv.implicit)
 
     if name == 'Adam':
-        optimizer = torch.optim.Adam(g[2], lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
+        optimizer = torch.optim.Adam(model.paramters(), lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
     elif name == 'AdamW':
-        optimizer = torch.optim.AdamW(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
+        optimizer = torch.optim.AdamW(model.paramters(), lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
     elif name == 'RMSProp':
-        optimizer = torch.optim.RMSprop(g[2], lr=lr, momentum=momentum)
+        optimizer = torch.optim.RMSprop(model.paramters(), lr=lr, momentum=momentum)
     elif name == 'SGD':
-        optimizer = torch.optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
+        optimizer = torch.optim.SGD(model.paramters(), lr=lr, momentum=momentum, nesterov=True)
+    elif name == 'FishLeg':
+        model = initialise_FishModel(model, module_names="__ALL__", fish_scale=scale_factor / damping)
+        optimizer = FishLeg(model,aux_loader,likelihood,lr=lr,beta=beta,weight_decay=weight_decay,aux_lr=aux_lr,aux_betas=(0.9, 0.999),aux_eps=aux_eps,damping=damping,update_aux_every=update_aux_every,writer=writer,method="antithetic",method_kwargs={"eps": 1e-4},precondition_aux=True,aux_log=True)
     else:
         raise NotImplementedError(f'Optimizer {name} not implemented.')
 
-    optimizer.add_param_group({'params': g[0], 'weight_decay': decay})  # add g0 with weight_decay
-    optimizer.add_param_group({'params': g[1], 'weight_decay': 0.0})  # add g1 (BatchNorm2d weights)
-    LOGGER.info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
-                f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias")
+    # optimizer.add_param_group({'params': g[0], 'weight_decay': decay})  # add g0 with weight_decay
+    # optimizer.add_param_group({'params': g[1], 'weight_decay': 0.0})  # add g1 (BatchNorm2d weights)
+    # LOGGER.info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
+               # f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias")
     return optimizer
 
 

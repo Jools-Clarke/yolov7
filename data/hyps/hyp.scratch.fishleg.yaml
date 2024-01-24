@@ -33,3 +33,10 @@ fliplr: 0.5  # image flip left-right (probability)
 mosaic: 1.0  # image mosaic (probability)
 mixup: 0.1  # image mixup (probability)
 copy_paste: 0.2  # segment copy-paste (probability)
+scale_factor: 1
+damping: 0.1
+aux_betas: (0.9, 0.999)
+method: "antithetic"
+method_kwargs: {"eps": 1e-4}
+precondition_aux: True,
+aux_log: True
