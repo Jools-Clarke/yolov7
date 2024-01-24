@@ -21,7 +21,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from utils.general import LOGGER, check_version, colorstr, file_date, git_describe
 
-from optim.FishLeg import FishLeg, FISH_LIKELIHOODS, initialise_FishModel
+from FishLeg.src.optim.FishLeg import FishLeg, FISH_LIKELIHOODS, initialise_FishModel
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
