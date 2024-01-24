@@ -317,7 +317,11 @@ def copy_attr(a, b, include=(), exclude=()):
             setattr(a, k, v)
 
 
-def smart_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5, scale_factor = 1, damping = 0.1):
+def smart_optimizer(model, name='Adam', hyp = {"lr": 0.001, "momentum": 0.9, "decay":1e-5}):
+    lr = hyp["lr"]
+    momentum = hyp["momentum"]
+    decay = hyp["decay"]
+
     # YOLOv5 3-param group optimizer: 0) weights with decay, 1) weights no decay, 2) biases no decay
     # g = [], [], []  # optimizer parameter groups
     # bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
@@ -386,8 +390,13 @@ def smart_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5, scal
     elif name == 'SGD':
         optimizer = torch.optim.SGD(model.paramters(), lr=lr, momentum=momentum, nesterov=True)
     elif name == 'FishLeg':
-        model = initialise_FishModel(model, module_names="__ALL__", fish_scale=scale_factor / damping)
-        optimizer = FishLeg(model,aux_loader,likelihood,lr=lr,beta=beta,weight_decay=weight_decay,aux_lr=aux_lr,aux_betas=(0.9, 0.999),aux_eps=aux_eps,damping=damping,update_aux_every=update_aux_every,writer=writer,method="antithetic",method_kwargs={"eps": 1e-4},precondition_aux=True,aux_log=True)
+        likelihood = FISH_LIKELIHOODS[hyp["likelihood"]](device=hyp["device"])
+
+        model = initialise_FishModel(model, module_names="__ALL__", fish_scale=hyp["scale_factor"] / hyp["damping"])
+        optimizer = FishLeg(model,hyp["aux_loader"], likelihood, lr=lr, beta=hyp["beta"],weight_decay=hyp["weight_decay"],
+                            aux_lr=hyp["aux_lr"],aux_betas=hyp["aux_betas"],aux_eps=hyp["aux_eps"],damping=hyp["damping"],
+                            update_aux_every=hyp["update_aux_every"],writer=hyp["writer"],method=hyp["method"],
+                            method_kwargs=hyp["method_kwargs"],precondition_aux=hyp["precondition_aux"],aux_log=hyp["aux_log"])
     else:
         raise NotImplementedError(f'Optimizer {name} not implemented.')
 

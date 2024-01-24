@@ -7,7 +7,8 @@ aux_eps: 1e-8
 update_aux_every: 10
 initialization: "normal"
 normalization: True
-likelihood: "FISH_LIKELIHOODS["bernoulli"](device=device)"
+likelihood: "bernoulli"
+device: "mps"
 warmup_epochs: 3.0  # warmup epochs (fractions ok)
 warmup_momentum: 0.8  # warmup initial momentum
 warmup_bias_lr: 0.1  # warmup initial bias lr
