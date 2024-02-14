@@ -12,6 +12,26 @@ All of installation, data preparation, and usage are as same as yolov5.
 python train.py --data coco.yaml --batch 16 --weights '' --cfg cfg/yolov7.yaml --epochs 300 --name yolov7 --img 640 --hyp hyp.scratch.yaml --min-items 0
 ```
 
+run as detatched 
+``` shell
+nohup python train.py --data coco.yaml --batch 16 --weights '' --cfg cfg/yolov7.yaml --epochs 50 --name yolov7_bigger_train --img 320 --hyp hyp.scratch.yaml --min-items 0 > ../yolov7_train_output.txt &
+
+disown
+```
+
+or run in detatched screen
+``` shell
+screen -S yolov7_training -dm bash -c 'python train.py --data coco.yaml --batch 16 --weights '' --cfg cfg/yolov7.yaml --epochs 50 --name yolov7_bigger_train --img 320 --hyp hyp.scratch.yaml --min-items 0 > ../yolov7_train_output.txt; exec sh'
+```
+list active screen sessions
+`screen -list`
+
+return to screen
+`screen -r yolov7_training`
+
+kill screen
+`screen -XS yolov7_training quit`
+
 ## Results
 
 [`yolov7-u6.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-u6.pt)
