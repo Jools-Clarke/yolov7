@@ -382,13 +382,13 @@ def smart_optimizer(model, name='Adam', hyp = {"lr0": 0.001, "momentum": 0.9, "w
     #                 g[1].append(iv.implicit)
 
     if name == 'Adam':
-        optimizer = torch.optim.Adam(model.paramters(), lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
     elif name == 'AdamW':
-        optimizer = torch.optim.AdamW(model.paramters(), lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
     elif name == 'RMSProp':
-        optimizer = torch.optim.RMSprop(model.paramters(), lr=lr, momentum=momentum)
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, momentum=momentum)
     elif name == 'SGD':
-        optimizer = torch.optim.SGD(model.paramters(), lr=lr, momentum=momentum, nesterov=True)
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, nesterov=True)
     elif name == 'FishLeg':
         likelihood = FISH_LIKELIHOODS[hyp["likelihood"]](device=hyp["device"])
 
