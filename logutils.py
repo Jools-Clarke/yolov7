@@ -25,7 +25,7 @@ class jobPosting():
 
         requests.post(self.url, data=json.dumps(json_data))
 
-    def finish(self):
+    def stop(self):
         json_data = {'text': f'{self.user} has finished job: {self.jobname}, clock time taken: {round((time.time()-self.start_time)/3600, 3)} hrs'}
 
         requests.post(self.url, data=json.dumps(json_data))

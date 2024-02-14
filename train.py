@@ -647,6 +647,15 @@ def run(**kwargs):
     main(opt)
     return opt
 
+'''
+if __name__ == "__main__":
+
+    opt = parse_opt()
+    main(opt)
+    poster.stop()
+'''
+
+import traceback
 
 if __name__ == "__main__":
     try:
@@ -654,5 +663,5 @@ if __name__ == "__main__":
         main(opt)
         poster.stop()
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         poster.crash_report(e)
