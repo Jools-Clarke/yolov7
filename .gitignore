@@ -263,3 +263,4 @@ pyrightconfig.json
 *.jpg
 runs/train/test_model*
 settings.json
+data/test_*
