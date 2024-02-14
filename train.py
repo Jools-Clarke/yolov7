@@ -15,6 +15,8 @@ Datasets:   https://github.com/ultralytics/yolov5/tree/master/data
 Tutorial:   https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data
 """
 
+import logutils
+
 import argparse
 import math
 import os
@@ -32,6 +34,8 @@ import torch.nn as nn
 import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
+
+poster = logutils.jobPosting('yolov7', 'Jools')
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -254,6 +258,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     model.names = names
 
     # Start training
+    poster.start()
     t0 = time.time()
     nb = len(train_loader)  # number of batches
     nw = max(round(hyp['warmup_epochs'] * nb), 100)  # number of warmup iterations, max(3 epochs, 100 iterations)
@@ -644,5 +649,10 @@ def run(**kwargs):
 
 
 if __name__ == "__main__":
-    opt = parse_opt()
-    main(opt)
+    try:
+        opt = parse_opt()
+        main(opt)
+        poster.stop()
+    except Exception as e:
+        print(e)
+        poster.crash_report(e)

@@ -3,6 +3,7 @@
 # events files
 *events*
 
+secrets.yaml
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/visualstudiocode,python,jupyternotebooks,macos,linux
