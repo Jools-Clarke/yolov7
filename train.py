@@ -206,7 +206,7 @@ def train(hyp, opt, device, tb_writer=None):
         likelihood = FISH_LIKELIHOODS[hyp["likelihood"]](model=model, version="v7", device=hyp["device"])
 
         model = initialise_FishModel(model, module_names="__ALL__", fish_scale=(hyp["scale_factor"] / hyp["damping"]))
-        optimizer = FishLeg(model, hyp["aux_loader"], likelihood, lr=lr, beta=hyp["beta"],weight_decay=hyp["weight_decay"],
+        optimizer = FishLeg(model, hyp["aux_loader"], likelihood, lr=hyp["lr0"], beta=hyp["momentum"],weight_decay=hyp["weight_decay"],
                             aux_lr=hyp["aux_lr"],aux_betas=hyp["aux_betas"],aux_eps=hyp["aux_eps"],damping=hyp["damping"],
                             update_aux_every=hyp["update_aux_every"],writer=hyp["writer"],method=hyp["method"],
                             method_kwargs=hyp["method_kwargs"],precondition_aux=hyp["precondition_aux"],aux_log=hyp["aux_log"])
