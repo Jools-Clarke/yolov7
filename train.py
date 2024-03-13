@@ -35,6 +35,8 @@ from utils.plots import plot_images, plot_labels, plot_results, plot_evolution
 from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first, is_parallel
 from utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
 
+from FishLeg.src.optim.FishLeg import FishLeg, FISH_LIKELIHOODS, initialise_FishModel
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,6 +107,29 @@ def train(hyp, opt, device, tb_writer=None):
         if any(x in k for x in freeze):
             print('freezing %s' % k)
             v.requires_grad = False
+
+    # Image sizes
+    gs = max(int(model.stride.max()), 32)  # grid size (max stride)
+    nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
+    imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
+
+    # DP mode
+    if cuda and rank == -1 and torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
+
+    # SyncBatchNorm
+    if opt.sync_bn and cuda and rank != -1:
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device)
+        logger.info('Using SyncBatchNorm()')
+
+    # Trainloader
+    dataloader, dataset = create_dataloader(train_path, imgsz, batch_size, gs, opt,
+                                            hyp=hyp, augment=True, cache=opt.cache_images, rect=opt.rect, rank=rank,
+                                            world_size=opt.world_size, workers=opt.workers,
+                                            image_weights=opt.image_weights, quad=opt.quad, prefix=colorstr('train: '))
+    mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
+    nb = len(dataloader)  # number of batches
+    assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
     # Optimizer
     nbs = 64  # nominal batch size
@@ -177,7 +202,14 @@ def train(hyp, opt, device, tb_writer=None):
             if hasattr(v.rbr_dense, 'vector'):   
                 pg0.append(v.rbr_dense.vector)
     if opt.fishleg:
-        optimizer = optim.Adam(pg0, lr=hyp['lr0'], betas=(hyp['momentum'], 0.999))  # adjust beta1 to momentum #---       flag fishleg optimiser asigned
+        hyp["aux_loader"] = dataloader
+        likelihood = FISH_LIKELIHOODS[hyp["likelihood"]](model=model, version="v7", device=hyp["device"])
+
+        model = initialise_FishModel(model, module_names="__ALL__", fish_scale=(hyp["scale_factor"] / hyp["damping"]))
+        optimizer = FishLeg(model, hyp["aux_loader"], likelihood, lr=lr, beta=hyp["beta"],weight_decay=hyp["weight_decay"],
+                            aux_lr=hyp["aux_lr"],aux_betas=hyp["aux_betas"],aux_eps=hyp["aux_eps"],damping=hyp["damping"],
+                            update_aux_every=hyp["update_aux_every"],writer=hyp["writer"],method=hyp["method"],
+                            method_kwargs=hyp["method_kwargs"],precondition_aux=hyp["precondition_aux"],aux_log=hyp["aux_log"])
     elif opt.adam:
         optimizer = optim.Adam(pg0, lr=hyp['lr0'], betas=(hyp['momentum'], 0.999))  # adjust beta1 to momentum
     else:
@@ -227,29 +259,6 @@ def train(hyp, opt, device, tb_writer=None):
             epochs += ckpt['epoch']  # finetune additional epochs
 
         del ckpt, state_dict
-
-    # Image sizes
-    gs = max(int(model.stride.max()), 32)  # grid size (max stride)
-    nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
-    imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
-
-    # DP mode
-    if cuda and rank == -1 and torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model)
-
-    # SyncBatchNorm
-    if opt.sync_bn and cuda and rank != -1:
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device)
-        logger.info('Using SyncBatchNorm()')
-
-    # Trainloader
-    dataloader, dataset = create_dataloader(train_path, imgsz, batch_size, gs, opt,
-                                            hyp=hyp, augment=True, cache=opt.cache_images, rect=opt.rect, rank=rank,
-                                            world_size=opt.world_size, workers=opt.workers,
-                                            image_weights=opt.image_weights, quad=opt.quad, prefix=colorstr('train: '))
-    mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
-    nb = len(dataloader)  # number of batches
-    assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
     # Process 0
     if rank in [-1, 0]:
@@ -527,8 +536,8 @@ def train(hyp, opt, device, tb_writer=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default='yolo7.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
+    parser.add_argument('--weights', type=str, default='', help='initial weights path')
+    parser.add_argument('--cfg', type=str, default='cfg/training/yolov7-tiny.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default='data/coco.yaml', help='data.yaml path')
     parser.add_argument('--hyp', type=str, default='data/hyp.scratch.p5.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
