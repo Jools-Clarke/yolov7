@@ -35,7 +35,7 @@ from utils.plots import plot_images, plot_labels, plot_results, plot_evolution
 from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first, is_parallel
 from utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
 
-from FishLeg.src.optim.FishLeg import FishLeg, FISH_LIKELIHOODS, initialise_FishModel
+from FishLeg.src.optim.FishLeg import FishLeg, FISH_LIKELIHOODS, initialise_FishModel, YOLO_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -179,14 +179,12 @@ def train(hyp, opt, device, tb_writer=None):
             if hasattr(v.rbr_dense, 'vector'):   
                 pg0.append(v.rbr_dense.vector)
     if opt.fishleg:
-        hyp["aux_loader"] = dataloader
-        likelihood = FISH_LIKELIHOODS[hyp["likelihood"]](model=model, version="v7", device=hyp["device"])
-
         model = initialise_FishModel(model, module_names="__ALL__", fish_scale=(hyp["scale_factor"] / hyp["damping"]))
-        optimizer = FishLeg(model, hyp["aux_loader"], likelihood, lr=hyp["lr0"], beta=hyp["momentum"],weight_decay=hyp["weight_decay"],
+        optimizer = FishLeg(model, lr=hyp["lr0"], beta=hyp["momentum"],weight_decay=hyp["weight_decay"],
                             aux_lr=hyp["aux_lr"],aux_betas=hyp["aux_betas"],aux_eps=hyp["aux_eps"],damping=hyp["damping"],
                             update_aux_every=hyp["update_aux_every"],writer=hyp["writer"],method=hyp["method"],
-                            method_kwargs=hyp["method_kwargs"],precondition_aux=hyp["precondition_aux"],aux_log=hyp["aux_log"])
+                            method_kwargs=hyp["method_kwargs"],precondition_aux=hyp["precondition_aux"],aux_log=hyp["aux_log"],
+                            device=hyp["device"])
     elif opt.adam:
         optimizer = optim.Adam(pg0, lr=hyp['lr0'], betas=(hyp['momentum'], 0.999))  # adjust beta1 to momentum
     else:
@@ -298,6 +296,13 @@ def train(hyp, opt, device, tb_writer=None):
     model.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
     model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
     model.names = names
+
+    if opt.fishleg:
+        version = YOLO_VERSION["yolov7"]
+        likelihood = FISH_LIKELIHOODS["yolo"](model=model, version=version, device=hyp["device"])
+
+        optimizer.aux_dataloader = dataloader
+        optimizer.likelihood = likelihood
 
     # Start training
     t0 = time.time()
